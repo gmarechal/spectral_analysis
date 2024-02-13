@@ -9,6 +9,18 @@ import xarray as xr
 g = 9.81  # gravitational acceleration
 
 def create_UTC_axis(ds_xyz, arrayIndex):
+
+    """
+    Purpose: Create the time axis associated to the motion along x, y, and z dimension
+    ----------
+    inputs:
+    --------
+    ds_xyz: the xarray dataset that contain the motions
+    arrayIndex: The array of second
+    output:
+    --------
+    time_array: datetime64 object in ns. 
+    """
     
     arrayIndex = xr.DataArray(arrayIndex, attrs={'units': 's'}).astype('timedelta64[s]')
 
@@ -21,6 +33,19 @@ def create_UTC_axis(ds_xyz, arrayIndex):
 
 
 def wave_frequency_spectrum(elevation, Fs = 1.2):
+    """
+    Purpose: Perform the frequency spectrum of the elevation signal
+    ----------
+    inputs:
+    --------
+    elevation: the motion along z (elevation induced by waves)
+    Fs: The sampling frequency
+    
+    output:
+    --------
+     freq: the frequency axis
+     spec_corr: the wave frequency spectrum. _corr stand for correction of the windowing
+    """
     
     nfft = len(elevation)  # The number of point for the spectral analysis
     
@@ -45,52 +70,66 @@ def wave_frequency_spectrum(elevation, Fs = 1.2):
     hs_spec = 4 * np.sqrt(np.sum(spec_folded)*df)
     #print(f'The significant wave height associated to the spectrum is {hs_spec} m')
     #print('\n')
-    print(f'The significant wave height associated to the elevation is {4 * np.sqrt(elevation.var())} m')
+    #print(f'The significant wave height associated to the elevation is {4 * np.sqrt(elevation.var())} m')
 
     spec_corr =  spec_folded * wc2t  # Correct the spectrum
     hs_spec_corr = 4 * np.sqrt(np.sum(spec_corr)*df)
-    print(f'The significant wave height associated to the spectrum is {hs_spec_corr} m')
+    #print(f'The significant wave height associated to the spectrum is {hs_spec_corr} m')
 
     return freq, spec_corr
 
 
 
 def wave_frequency_spectrum_overlap(elevation, overlap, nfft,  Fs = 1.2):
+
+    """
+    Purpose: Perform the frequency spectrum of the elevation signal with the signal cut in segments with overlap
+    ----------
+    inputs:
+    --------
+    elevation: the motion along z (elevation induced by waves)
+    overlap: the overlap between segments in %
+    nfft: tthe number of point per segments
+    Fs: The sampling frequency
     
-   
-    Nf = int(nfft/2 + 1)
-    NS1 = len(elevation)//nfft
-    ov = overlap/100
-    NS = NS1 * (1 + 2*ov) - 2 * ov
+    output:
+    --------
+     freq: the frequency axis
+     spec_corr_mean: the mean wave frequency spectrum. _corr stand for correction of the windowing
+    """  
+    Nf = int(nfft/2 + 1) # The number of frequencies
+    NS1 = len(elevation)//nfft # The number point per segment
+    ov = overlap/100 # percentage of overlap between segments
+    NS = NS1 * (1 + 2*ov) - 2 * ov # number of point per segment
     
-    Eh = np.ones((int(NS), 1))
-    hanningt = 0.5 * (1-np.cos(2*np.pi*np.linspace(0, nfft-1, nfft)/(nfft-1)))
+    Eh = np.ones((int(NS), 1)) # Initialize array of NS pts
+    hanningt = 0.5 * (1-np.cos(2*np.pi*np.linspace(0, nfft-1, nfft)/(nfft-1))) # Hanning window
 
         
         
-    H = hanningt * Eh
-    elevmat = np.zeros((nfft, int(NS)))
+    H = hanningt * Eh # 1d window
+    elevmat = np.zeros((nfft, int(NS))) # initialize matrix of length of spectrum times n_seg
     vec_i = np.arange(0, NS, 1)
 
-    df = Fs/nfft
-    freq = np.linspace(df, df*(Nf-1), (Nf - 1))
+    df = Fs/nfft # frequency resolution
+    freq = np.linspace(df, df*(Nf-1), (Nf - 1)) # frequency axis
 
-    for iw in range(len(vec_i)):
+    for iw in range(len(vec_i)): # fill matrix of sub sample
         nstart = np.floor((iw-1+1)*(1 - ov) * nfft)
         nend = nstart + nfft
         elevmat[:, iw] = elevation[int(nstart):int(nend)]
 
     elevmat2 = elevmat.T
     
-    wc2t = 1/np.mean(hanningt**2)
-    Zw = (elevmat2-np.mean(elevmat2)) * hanningt
+    wc2t = 1/np.mean(hanningt**2) # correction factor
+    Zw = (elevmat2-np.mean(elevmat2)) * hanningt # Windowed signals + remove trend
 
-    Zf = np.fft.fft(Zw, nfft, axis = 1)/nfft
+    Zf = np.fft.fft(Zw, nfft, axis = 1)/nfft # Fourier transform of the windowed signals
 
-    spec = abs(Zf)**2  / (df)
-    spec_folded = 2 * spec[:, 0:np.size(spec, axis = 1)//2]
-    spec_corr = spec_folded * wc2t
-    spec_corr_mean = np.mean(spec_corr, axis = 0).T
+    spec = abs(Zf)**2  / (df) # Power spectral density of the spectra
+    spec_folded = 2 * spec[:, 0:np.size(spec, axis = 1)//2] # Fold the spectrum
+    spec_corr = spec_folded * wc2t # correct the spectrum because of window
+    spec_corr_mean = np.mean(spec_corr, axis = 0).T # mean spectrum
 
     return freq, spec_corr_mean
 
@@ -155,7 +194,22 @@ def buoy_spectrum2d(sf, a1, a2, b1, b2, dirs = np.arange(0,360,10)):
 
 def plot_polar_spectrum(dirspec, DIRS, FREQS, time_spec, vmin0 = 0, vmax0 = 30, cbar = 0, date_on = 0):
     
+    """
+    Purpose: Plot the direction-frequency spectrum in a polar coordinate
+    ----------
+    inputs:
+    --------
+    dirspec: the directional spectrum
+    DIRS: the 2D axis of direction (in rad!)
+    FREQS: the 2D axis of frequency
+    time_spec: the date when the spectrum is calculated
+    vmin0, vmax: the bounds of values plot in the polar plot
+    cbar, date_on: switch to activate or not the date and the colorbar
     
+    output:
+    --------
+    empty
+    """      
     fig,ax=plt.subplots(subplot_kw={'projection': 'polar'})
     p1 = plt.pcolor(DIRS, FREQS, dirspec.T, vmin = vmin0, vmax = vmax0, cmap = 'Blues')
     plt.ylim([0,0.3])
