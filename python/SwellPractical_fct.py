@@ -107,7 +107,7 @@ def wave_frequency_spectrum_overlap(elevation, overlap, nfft,  Fs = 1.2):
 
         
         
-    H = hanningt * Eh # 1d window
+    # H = hanningt * Eh # 1d window
     elevmat = np.zeros((nfft, int(NS))) # initialize matrix of length of spectrum times n_seg
     vec_i = np.arange(0, NS, 1)
 
@@ -122,7 +122,7 @@ def wave_frequency_spectrum_overlap(elevation, overlap, nfft,  Fs = 1.2):
     elevmat2 = elevmat.T
     
     wc2t = 1/np.mean(hanningt**2) # correction factor
-    Zw = (elevmat2-np.mean(elevmat2)) * hanningt # Windowed signals + remove trend
+    Zw = (elevmat2-np.mean(elevmat2)) * hanningt # Windowed signals to avoid spectral leakage + remove trend
 
     Zf = np.fft.fft(Zw, nfft, axis = 1)/nfft # Fourier transform of the windowed signals
 
