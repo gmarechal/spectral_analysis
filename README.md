@@ -1,0 +1,1 @@
+This Repository contains Pythons code to compute wave spectrum from sea surface elevation and pressure time record. The different steps to perform the spectral analysis are provided and compare with the welch function from the Scipy library.
